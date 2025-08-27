@@ -30,7 +30,7 @@ def read_canvas_input(request: CanvasInput):
     """
     
     # Your Google Cloud Vision API key
-    api_key = "AIzaSyCZ0xAjR_jrk-vdWaEP-KwjNRBqK9XVZpc"
+    api_key = "key here"
     
     try:
         detected_letters = detect_handwritten_letters_from_base64(
