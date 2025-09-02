@@ -1,6 +1,4 @@
-gunicorn --bind=0.0.0.0 --timeout 600 app:app
-annotated-types==0.7.0
-anyio==4.10.0
+fastapi[standard]
 beautifulsoup4==4.13.5
 cachetools==5.5.2
 certifi==2025.8.3
@@ -80,3 +78,4 @@ uvicorn==0.35.0
 watchfiles==1.1.0
 
 websockets==15.0.1
+
