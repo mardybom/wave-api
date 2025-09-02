@@ -24,28 +24,6 @@ app.add_middleware(
 def read_root():
     return {"Hello": "World"}
 
-# ---------- Response models----------
-class LetterOut(BaseModel):
-    letter: str
-    confidence: float
-
-class MismatchOut(BaseModel):
-    letter: str
-    count: int
-    top_confidence: float
-
-class VerificationResponse(BaseModel):
-    status: Literal["success"]
-    expected_letter: str
-    is_correct: bool
-    reason: str
-    detected_count: int
-    match_count: int
-    top_match_confidence: float
-    match_ratio: float
-    letters: List[LetterOut]
-    mismatches: List[MismatchOut]
-
 @app.post("/alphabet_mastery")
 
 def read_canvas_input(request: CanvasInput):
