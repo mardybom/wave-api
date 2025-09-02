@@ -10,7 +10,7 @@ class CanvasInput(BaseModel):
 
 def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expected_letter: str):
     try:
-        # --- validate expected_letter case-insensitively ---
+        # validate expected_letter case-insensitively
         if expected_letter is None:
             raise HTTPException(status_code=400, detail="expected_letter is required")
         expected_letter = expected_letter.strip()
