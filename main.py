@@ -20,12 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
 @app.post("/alphabet_mastery")
-
 def read_canvas_input(request: CanvasInput):
     """
     Accepts base64 image + expected letter (upper/lowercase), runs OCR, and verifies correctness.
