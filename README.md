@@ -1,1 +1,1 @@
-# wave-api
+# WAVE-API
