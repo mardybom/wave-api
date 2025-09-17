@@ -33,7 +33,9 @@ def read_canvas_input(request: CanvasInput):
         result = detect_handwritten_letters_from_base64(
             request.canvas_input,
             api_key,
-            request.expected_letter  # not case sensitive
+            request.expected_letter,  # not case sensitive
+            request.is_capital,
+            request.level
         )
         return {"status": "success", **result}
     except HTTPException:
