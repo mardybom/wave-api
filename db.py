@@ -8,8 +8,8 @@ def _conninfo():
         "dbname": os.environ["DB_NAME"],
         "user": os.environ["DB_USER"],
         "password": os.environ["DB_PASSWORD"],
-        "port": os.getenv("DB_PORT", "5432"),
-        "sslmode": os.getenv("DB_SSLMODE", "require"),
+        "port": os.environ["DB_PORT"],
+        "sslmode": os.environ["DB_SSLMODE"],
     }
 
 def fetch_next_sentence_row(level: str):

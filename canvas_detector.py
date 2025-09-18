@@ -4,8 +4,6 @@ import base64, requests, statistics
 from typing import List, Dict
 from collections import defaultdict
 
-
-
 class CanvasInput(BaseModel):
     canvas_input: str           # base64
     expected_letter: str        # validate manually

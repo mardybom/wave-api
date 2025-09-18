@@ -4,7 +4,7 @@ import os
 from pydantic import BaseModel
 
 from canvas_detector import detect_handwritten_letters_from_base64, CanvasInput
-from db import fetch_row_by_level
+from db import fetch_next_sentence_row
 
 
 app = FastAPI(
