@@ -81,7 +81,7 @@ def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expecte
         matches = [x for x in letters if x["letter"] in expected_up]
         match_count = len(matches)
         # top_match_conf = max([m["confidence"] for m in matches], default=0.0)
-        top_match_conf = statistics.mean([m["confidence"] for m in matches])
+        top_match_conf = statistics.mean([m["confidence"] for m in matches]) if len(matches) > 0 else 0
         # ratio = (match_count / total_alpha) if total_alpha else 0.0
         # is_correct = (match_count == len(expected_up)) and (mismatch_counts == 0) and (top_match_conf >= 0.70 or ratio >= 0.60)
 
