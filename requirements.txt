@@ -1,2 +1,3 @@
 fastapi[standard]
 google-cloud-vision
+psycopg2
