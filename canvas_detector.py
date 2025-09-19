@@ -71,7 +71,7 @@ def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expecte
                                 ch = symbol.get("text", "")
                                 conf = float(symbol.get("confidence", 0.0) or 0.0)
                                 if (ch.isalpha() or ch == '@') and ord(ch) < 128:
-                                    if ch.lower() in 'cxvusmw':
+                                    if ch.lower() in 'cxvusmwy':
                                         if is_capital == "capital":
                                             ch = ch.upper()
                                         else:
