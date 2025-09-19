@@ -6,22 +6,9 @@ from pydantic import BaseModel
 from canvas_detector import detect_handwritten_letters_from_base64, CanvasInput
 from db import fetch_next_sentence_row
 
-
 app = FastAPI(
     title="Alphabet Mastery API",
-    version="1.0.0",
-    description="Accepts a base64 canvas image and an expected letter (A–Z), OCRs it, and verifies correctness."
-)
-
-ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",")]
-allow_credentials = False if ALLOWED_ORIGINS == ["*"] else True
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"] if ALLOWED_ORIGINS == ["*"] else ALLOWED_ORIGINS,
-    allow_credentials=allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    version="1.0.0"
 )
 
 @app.post("/alphabet_mastery")
@@ -57,7 +44,6 @@ def sentence_next(req: SentenceLevelRequest):
     Sentence Rearranging API:
       - Body: { "level": "<value>" }
       - Returns the next unique row for that level (wraps after the last).
-      - No schema creation; expects DB tables already exist.
     """
     level = (req.level or "").strip()
     if not level:
@@ -73,5 +59,5 @@ def sentence_next(req: SentenceLevelRequest):
     if row is None:
         raise HTTPException(status_code=404, detail=f"No sentence rows found for level '{level}'")
 
-    # Return the full row (all columns) to the frontend
+    # Return all columns to the frontend
     return {"status": "success", "data": dict(row)}
