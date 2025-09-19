@@ -70,7 +70,12 @@ def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expecte
                             for symbol in word.get("symbols", []):
                                 ch = symbol.get("text", "")
                                 conf = float(symbol.get("confidence", 0.0) or 0.0)
-                                if ch.isalpha() and ord(ch) < 128:
+                                if (ch.isalpha() or ch == '@') and ord(ch) < 128:
+                                    if ch.lower() in 'cxvusmw':
+                                        if is_capital == "capital":
+                                            ch = ch.upper()
+                                        else:
+                                            ch = ch.lower()
                                     letters.append({"letter": ch, "confidence": round(conf, 3)})
 
         # Case-insensitive verification
@@ -104,13 +109,13 @@ def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expecte
             for k, v in sorted(mismatch_counts.items(), key=lambda kv: (-kv[1], -mismatch_top_conf[kv[0]]))
         ]
         ratio = ((len(expected_letter) - len(mismatches)) / len(expected_letter)) if expected_letter else 0.0
-        is_correct = (len(mismatches)==0) and (top_match_conf >= 0.70 and ratio >= 0.60)
+        is_correct = (len(mismatches)==0) and (top_match_conf >= 0.30 and ratio >= 0.60)
         
         reason = ""
         if not is_correct:
             if (len(mismatches) > 0): # when user writes extra letters, or they are missing some letters
                 reason = f"You have {len(mismatches)} mismatched alphabets"
-            elif (top_match_conf < 0.70):
+            elif (top_match_conf < 0.30):
                 reason = f"Low confidence ({top_match_conf:.2f})"
             elif ratio < 0.60:
                 reason = "You're partially correct."
