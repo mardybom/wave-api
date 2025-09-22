@@ -1,14 +1,14 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 import os
 from pydantic import BaseModel
 
 from canvas_detector import detect_handwritten_letters_from_base64, CanvasInput
-from db import fetch_next_sentence_row
+from sentence_rearranging import fetch_next_sentence_row
+from image_labeling import fetch_random_image_row
 
 app = FastAPI(
     title="Alphabet Mastery API",
-    version="1.0.0"
+    version="2.0.0"
 )
 
 @app.post("/alphabet_mastery")
@@ -61,3 +61,24 @@ def sentence_next(req: SentenceLevelRequest):
 
     # Return all columns to the frontend
     return {"status": "success", "data": dict(row)}
+
+# --- Image Labeling ---
+class ImageLabelingRequest(BaseModel):
+    pass
+
+@app.post("/image_labeling/next")
+def get_image_labeling(req: ImageLabelingRequest):
+    """
+    Fetch a random image row with:
+      - image_id
+      - base64 image
+      - correct label (formatted)
+      - 4 fake labels of same length
+    """
+    try:
+        row = fetch_random_image_row()
+        if not row:
+            raise HTTPException(status_code=404, detail="No rows found in image_labeling table")
+        return {"status": "success", "data": row}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
