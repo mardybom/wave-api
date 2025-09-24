@@ -5,28 +5,33 @@ import itertools
 from db import get_db_connection
 
 def format_label(label: str) -> str:
+    
     # Replace underscores and hyphens with spaces
     label = label.replace("_", " ").replace("-", " ")
+    
     # Remove unwanted symbols except spaces
     label = re.sub(r"[^A-Za-z0-9 ]+", "", label)
     return label.strip()
 
 def generate_rearranged_labels(correct_label: str, count: int = 4):
+    """
+    Generate up to `count` unique jumbled versions of the correct label.
+    Avoids factorial permutations by using random shuffling.
+    """
+
     chars = list(correct_label)
+    fake_labels = set()
 
-    # Generate permutations (as strings)
-    perms = {"".join(p) for p in itertools.permutations(chars)}
+    attempts = 0
+    max_attempts = 50  # safety cap
+    while len(fake_labels) < count and attempts < max_attempts:
+        attempts += 1
+        random.shuffle(chars)
+        shuffled = "".join(chars)
+        if shuffled.lower() != correct_label.lower():
+            fake_labels.add(shuffled)
 
-    # Remove the original correct label
-    perms.discard(correct_label)
-
-    # Convert to list for random.sample
-    perms_list = list(perms)
-
-    # Pick up to `count` random permutations
-    fake_labels = random.sample(perms_list, min(count, len(perms_list)))
-
-    return fake_labels
+    return list(fake_labels)
 
 def fetch_random_image_row():
     conn = get_db_connection()
