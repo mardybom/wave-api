@@ -2,12 +2,13 @@ import psycopg2
 import psycopg2.extras
 from db import get_db_connection
 
-def fetch_next_myth_row():
+def fetch_next_myth_row(batch_size=10):
     """
-    Returns the next myth row (wraps after the last one).
+    Returns the next batch of myths (wraps after the end).
     Tracks progress in myth_cursors (singleton=1, last_myth_id).
     """
-    sql_select = """
+
+    sql_select = f"""
         WITH cur AS (
             SELECT last_myth_id
             FROM myth_cursors
@@ -18,18 +19,18 @@ def fetch_next_myth_row():
             FROM dyslexia_myths
             WHERE id > COALESCE((SELECT last_myth_id FROM cur), 0)
             ORDER BY id ASC
-            LIMIT 1
-        )
-        SELECT * FROM nxt
-        UNION ALL
-        SELECT id, myth, truth
-        FROM (
+            LIMIT {batch_size}
+        ),
+        wrap AS (
             SELECT id, myth, truth
             FROM dyslexia_myths
             ORDER BY id ASC
-            LIMIT 1
-        ) wrap
-        WHERE NOT EXISTS (SELECT 1 FROM nxt);
+            LIMIT {batch_size - 1}
+        )
+        SELECT * FROM nxt
+        UNION ALL
+        SELECT * FROM wrap
+        WHERE (SELECT COUNT(*) FROM nxt) < {batch_size};
     """
 
     sql_update_cursor = """
@@ -38,24 +39,27 @@ def fetch_next_myth_row():
         ON CONFLICT (singleton)
         DO UPDATE SET last_myth_id = EXCLUDED.last_myth_id;
     """
-    # connect to db
+
     conn = get_db_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            # Single-stream advisory lock (no key arg needed)
+            # Prevent concurrent reads
             cur.execute("SELECT pg_advisory_xact_lock(hashtext('dyslexia_myths_stream'));")
 
             cur.execute(sql_select)
-            row = cur.fetchone()
-            if not row:
+            rows = cur.fetchall()
+
+            if not rows:
                 conn.rollback()
-                return None
+                return []
 
-            next_id = row["id"]
+            # Update cursor to last myth ID fetched
+            last_id = rows[-1]["id"]
 
-            cur.execute(sql_update_cursor, (next_id,))
+            cur.execute(sql_update_cursor, (last_id,))
             conn.commit()
-            return row
+
+            return rows
     except Exception:
         conn.rollback()
         raise

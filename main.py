@@ -89,22 +89,28 @@ class MythNextRequest(BaseModel):
     pass  # no fields needed; kept to mirror SentenceLevelRequest usage pattern
 
 @app.post("/myth/next")
-def myth_next(req=MythNextRequest):
+def myth_next(req: MythNextRequest):
     """
     Dyslexia Myths API:
-      - Body: {}  (no fields required)
-      - Returns the next myth/truth pair (wraps after the last).
+      - Body: {"count": 10}  (optional; defaults to 10)
+      - Returns the next N myth/truth rows (wraps after the last).
     """
     try:
-        row = fetch_next_myth_row()  # singleton cursor version (no key arg)
+        rows = fetch_next_myth_row(batch_size=req.count)  # new batch function
     except KeyError as e:
         # mirrors your sentence endpoint's config error handling
         raise HTTPException(status_code=500, detail=f"Missing DB config env var: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    if row is None:
+    if not rows:
         raise HTTPException(status_code=404, detail="No myth rows found")
 
-    # Return all columns to the frontend
-    return {"status": "success", "data": dict(row)}
+    # RealDictCursor returns dict-like rows already; ensure JSON-serializable
+    data = [dict(r) for r in rows]
+
+    return {
+        "status": "success",
+        "count": len(data),
+        "data": data
+    }
