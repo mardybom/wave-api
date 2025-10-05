@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 import os
 from pydantic import BaseModel
+from typing import Optional
 
 from canvas_detector import detect_handwritten_letters_from_base64, CanvasInput
 from sentence_rearranging import fetch_next_sentence_row
@@ -89,14 +90,14 @@ class MythNextRequest(BaseModel):
     pass  # no fields needed; kept to mirror SentenceLevelRequest usage pattern
 
 @app.post("/myth/next")
-def myth_next(req: MythNextRequest):
+def myth_next():
     """
     Dyslexia Myths API:
       - Body: {"count": 10}  (optional; defaults to 10)
       - Returns the next N myth/truth rows (wraps after the last).
     """
     try:
-        rows = fetch_next_myth_row(batch_size=req.count)  # new batch function
+        rows = fetch_next_myth_row(batch_size=10)  # new batch function
     except KeyError as e:
         # mirrors your sentence endpoint's config error handling
         raise HTTPException(status_code=500, detail=f"Missing DB config env var: {e}")
