@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from canvas_detector import detect_handwritten_letters_from_base64, CanvasInput
 from sentence_rearranging import fetch_next_sentence_row
 from image_labeling import fetch_random_image_row
+from dyslexia_myths import fetch_next_myth_row
 
 app = FastAPI(
     title="Alphabet Mastery API",
@@ -82,3 +83,28 @@ def get_image_labeling(req: ImageLabelingRequest):
         return {"status": "success", "data": row}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+# If you want strict symmetry in having a request model:
+class MythNextRequest(BaseModel):
+    pass  # no fields needed; kept to mirror SentenceLevelRequest usage pattern
+
+@app.post("/myth/next")
+def myth_next(req=MythNextRequest):
+    """
+    Dyslexia Myths API:
+      - Body: {}  (no fields required)
+      - Returns the next myth/truth pair (wraps after the last).
+    """
+    try:
+        row = fetch_next_myth_row()  # singleton cursor version (no key arg)
+    except KeyError as e:
+        # mirrors your sentence endpoint's config error handling
+        raise HTTPException(status_code=500, detail=f"Missing DB config env var: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="No myth rows found")
+
+    # Return all columns to the frontend
+    return {"status": "success", "data": dict(row)}
