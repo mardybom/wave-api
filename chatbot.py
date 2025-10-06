@@ -3,24 +3,21 @@ import os
 from google import genai
 from google.genai import types
 
-# 1) Client
-# client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "api key"))
-
-api_key = os.getenv("GCV_API_KEY")
-client = genai.Client(api_key=api_key)
-
-# 2) Grounding tool (Google Search)
-grounding_tool = types.Tool(
-    google_search=types.GoogleSearch()
-)
-
-# 3) Config (you can add temperature here if you like)
-config = types.GenerateContentConfig(
-    tools=[grounding_tool],
-    temperature=0.7
-)
 
 def get_parent_answer(question: str, kb_hit: str | None = None):
+
+    api_key = os.getenv("GCV_API_KEY")
+    if not api_key:
+        raise ValueError("Missing GCV_API_KEY environment variable")
+    
+    client = genai.Client(api_key=api_key)
+    
+    # 2) Grounding tool (Google Search)
+    grounding_tool = types.Tool(google_search=types.GoogleSearch())
+    
+    # 3) Config
+    config = types.GenerateContentConfig(tools=[grounding_tool], temperature=0.7)
+
     """
     Builds a grounded, parent-friendly answer.
     Assumes globals exist (per your target skeleton):
@@ -116,14 +113,3 @@ def get_parent_answer(question: str, kb_hit: str | None = None):
         "suggestions": suggestions,    # Optional "Related searches"
         "disclaimer": "This is general information, not medical advice."
     }
-
-
-
-# --- quick manual test ---
-if __name__ == "__main__":
-    res = get_parent_answer("Im so fed up with dyslexia, what should I do?")
-    print("\nAnswer:\n", res["answer"])
-    # if res["sources"]:
-    #     print("\n Sources:")
-    #     for s in res["sources"]:
-    #         print("-", s)
