@@ -3,3 +3,4 @@ google-cloud-vision
 psycopg2
 pronouncing
 setuptools<81
+google-genai

@@ -7,10 +7,11 @@ from canvas_detector import detect_handwritten_letters_from_base64, CanvasInput
 from sentence_rearranging import fetch_next_sentence_row
 from image_labeling import fetch_random_image_row
 from dyslexia_myths import fetch_next_myth_row
+from chatbot import get_parent_answer
 
 app = FastAPI(
     title="Alphabet Mastery API",
-    version="2.0.0"
+    version="3.0.0"
 )
 
 @app.post("/alphabet_mastery")
@@ -85,9 +86,8 @@ def get_image_labeling(req: ImageLabelingRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
-# If you want strict symmetry in having a request model:
 class MythNextRequest(BaseModel):
-    pass  # no fields needed; kept to mirror SentenceLevelRequest usage pattern
+    pass
 
 @app.post("/myth/next")
 def myth_next():
@@ -115,3 +115,21 @@ def myth_next():
         "count": len(data),
         "data": data
     }
+
+# --- Parent Chatbot ---
+class ParentChatRequest(BaseModel):
+    question: str
+    kb_hit: Optional[str] = None
+
+@app.post("/parent_chat")
+def parent_chat(req: ParentChatRequest):
+    """
+    Parent Chatbot API:
+      - Body: {"question": "<user question>", "kb_hit": "<optional context>"}
+      - Returns a grounded, parent-friendly response with optional citations.
+    """
+    try:
+        result = get_parent_answer(req.question, req.kb_hit)
+        return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chatbot error: {str(e)}")
