@@ -1,3 +1,5 @@
 fastapi[standard]
 google-cloud-vision
 psycopg2
+pronouncing
+setuptools<81
