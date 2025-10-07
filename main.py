@@ -1,3 +1,14 @@
+"""
+Alphabet Mastery API
+
+Provides endpoints for:
+  - Alphabet recognition and verification (Google Vision)
+  - Sentence rearranging activities
+  - Image labeling with ARPAbet
+  - Dyslexia myths and facts retrieval
+  - Parent-friendly chatbot
+"""
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -15,6 +26,7 @@ app = FastAPI(title="Alphabet Mastery API", version="3.0.0")
 # ---------------- Alphabet Mastery ---------------- #
 @app.post("/alphabet_mastery")
 def read_canvas_input(request: CanvasInput):
+    """Run handwriting detection and verify the expected letter."""
     api_key = get_gcv_api_key()
     try:
         result = detect_handwritten_letters_from_base64(
@@ -25,19 +37,19 @@ def read_canvas_input(request: CanvasInput):
             request.level,
         )
         return {"status": "success", **result}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 # ---------------- Sentence Rearranging ---------------- #
 class SentenceLevelRequest(BaseModel):
+    """Request model for sentence rearranging level selection."""
     level: str
 
 
 @app.post("/sentence/next")
 def sentence_next(req: SentenceLevelRequest):
+    """Fetch the next unique sentence row for the given difficulty level."""
     level = (req.level or "").strip()
     if not level:
         raise HTTPException(status_code=400, detail="level is required")
@@ -56,6 +68,7 @@ def sentence_next(req: SentenceLevelRequest):
 # ---------------- Image Labeling ---------------- #
 @app.post("/image_labeling/next")
 def get_image_labeling():
+    """Return a random image row with label options for the game."""
     try:
         row = fetch_random_image_row()
         if not row:
@@ -68,6 +81,7 @@ def get_image_labeling():
 # ---------------- Dyslexia Myths ---------------- #
 @app.post("/myth/next")
 def myth_next():
+    """Fetch the next batch of dyslexia myths and truths."""
     try:
         rows = fetch_next_myth_row(batch_size=10)
         if not rows:
@@ -82,15 +96,17 @@ def myth_next():
 
 # ---------------- Parent Chatbot ---------------- #
 class ParentChatRequest(BaseModel):
+    """Request model for parent chatbot queries."""
     question: str
     kb_hit: Optional[str] = None
 
 
 @app.post("/parent_chat")
 def parent_chat(req: ParentChatRequest):
-    get_gcv_api_key()  # Ensure key is present
+    """Return a parent-friendly chatbot response with grounding and citations."""
+    api_key = get_gcv_api_key()
     try:
-        result = get_parent_answer(req.question, req.kb_hit)
+        result = get_parent_answer(req.question, req.kb_hit, api_key)
         return {"status": "success", "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chatbot error: {str(e)}")

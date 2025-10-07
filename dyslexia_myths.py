@@ -1,14 +1,28 @@
+"""
+Dyslexia Myths Database Logic
+
+Provides helper function to fetch the next batch of myths and truths
+from the dyslexia_myths table. Wraps to the beginning when the end
+is reached and maintains progress in myth_cursors.
+"""
+
 import psycopg2
 import psycopg2.extras
+
 from db_config import get_db_connection
 
-def fetch_next_myth_row(batch_size=10):
-    """
-    Returns the next batch of myths (wraps after the end).
-    Tracks progress in myth_cursors (singleton=1, last_myth_id).
-    """
 
-    sql_select = f"""
+def fetch_next_myth_row(batch_size: int = 10):
+    """
+    Return the next batch of myths (wraps after reaching the end).
+
+    Tracks progress using:
+        myth_cursors(
+            singleton INTEGER PRIMARY KEY,
+            last_myth_id INTEGER NOT NULL
+        )
+    """
+    sql_select = """
         WITH cur AS (
             SELECT last_myth_id
             FROM myth_cursors
@@ -19,18 +33,18 @@ def fetch_next_myth_row(batch_size=10):
             FROM dyslexia_myths
             WHERE id > COALESCE((SELECT last_myth_id FROM cur), 0)
             ORDER BY id ASC
-            LIMIT {batch_size}
+            LIMIT %s
         ),
         wrap AS (
             SELECT id, myth, truth
             FROM dyslexia_myths
             ORDER BY id ASC
-            LIMIT {batch_size - 1}
+            LIMIT %s
         )
         SELECT * FROM nxt
         UNION ALL
         SELECT * FROM wrap
-        WHERE (SELECT COUNT(*) FROM nxt) < {batch_size};
+        WHERE (SELECT COUNT(*) FROM nxt) < %s;
     """
 
     sql_update_cursor = """
@@ -46,7 +60,8 @@ def fetch_next_myth_row(batch_size=10):
             # Prevent concurrent reads
             cur.execute("SELECT pg_advisory_xact_lock(hashtext('dyslexia_myths_stream'));")
 
-            cur.execute(sql_select)
+            # Fetch next batch or wrap
+            cur.execute(sql_select, (batch_size, batch_size - 1, batch_size))
             rows = cur.fetchall()
 
             if not rows:
@@ -55,13 +70,14 @@ def fetch_next_myth_row(batch_size=10):
 
             # Update cursor to last myth ID fetched
             last_id = rows[-1]["id"]
-
             cur.execute(sql_update_cursor, (last_id,))
             conn.commit()
 
             return rows
-    except Exception:
+
+    except Exception as e:
         conn.rollback()
-        raise
+        raise e
+
     finally:
         conn.close()

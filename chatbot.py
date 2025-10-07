@@ -5,10 +5,9 @@ Provides parent-friendly answers about dyslexia using Gemini with Google Search 
 
 from google import genai
 from google.genai import types
-from gcv_config import get_gcv_api_key
 
 
-def get_parent_answer(question: str, kb_hit: str | None = None) -> dict:
+def get_parent_answer(question: str, kb_hit: str | None = None, api_key: str | None = None) -> dict:
     """
     Generate a grounded, parent-friendly response about dyslexia.
 
@@ -19,7 +18,9 @@ def get_parent_answer(question: str, kb_hit: str | None = None) -> dict:
     Returns:
         dict: Structured chatbot response with answer, sources, and suggestions.
     """
-    api_key = get_gcv_api_key()
+    if not api_key:
+        raise ValueError("API key is required for get_parent_answer()")
+    
     client = genai.Client(api_key=api_key)
 
     grounding_tool = types.Tool(google_search=types.GoogleSearch())
