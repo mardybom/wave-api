@@ -1,7 +1,7 @@
 import os
 import psycopg2
 import psycopg2.extras
-from db import get_db_connection
+from db_config import get_db_connection
 
 def fetch_next_sentence_row(level: str):
     """
