@@ -88,9 +88,9 @@ class ParentChatRequest(BaseModel):
 
 @app.post("/parent_chat")
 def parent_chat(req: ParentChatRequest):
-    get_gcv_api_key()  # Ensure key is present
+    api_key = get_gcv_api_key()
     try:
-        result = get_parent_answer(req.question, req.kb_hit)
+        result = get_parent_answer(req.question, req.kb_hit, api_key)
         return {"status": "success", "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chatbot error: {str(e)}")
