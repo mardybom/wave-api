@@ -8,6 +8,8 @@ import requests
 from typing import List, Dict
 from fastapi import HTTPException
 from pydantic import BaseModel
+import cv2, numpy as np, io
+from PIL import Image
 
 # ---------- Request model ----------
 class CanvasInput(BaseModel):
@@ -15,6 +17,56 @@ class CanvasInput(BaseModel):
     expected_letter: str        # "a" for easy, "ab" for hard
     is_capital: str             # "capital" | "small"
     level: str                  # "easy" | "hard"
+
+def _preprocess_base64_for_ocr(b64_image: str) -> str:
+    # strip header if present
+    if "," in b64_image:
+        b64_image = b64_image.split(",", 1)[1]
+    # decode
+    img_bytes = base64.b64decode("".join(b64_image.split()))
+    img = Image.open(io.BytesIO(img_bytes)).convert("L")     # grayscale
+    g = np.array(img)
+
+    # binarize (Otsu), make strokes dark on light bg
+    _, bw = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # Ensure black background / white strokes for processing
+    # (we want stroke=white for connected components below)
+    if bw.mean() < 127:
+        bw = 255 - bw
+
+    # connect small gaps (helps i/j dots, W/M intersections)
+    bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, np.ones((3,3), np.uint8), iterations=1)
+
+    # largest connected component (ignore background)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(bw, connectivity=8)
+    if n > 1:
+        idx = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
+        x, y, w, h, _ = stats[idx]
+        roi = bw[y:y+h, x:x+w]
+    else:
+        roi = bw
+
+    # square pad + center
+    size = max(roi.shape[:2])
+    canvas = np.zeros((size, size), dtype=np.uint8)
+    oy = (size - roi.shape[0]) // 2
+    ox = (size - roi.shape[1]) // 2
+    canvas[oy:oy+roi.shape[0], ox:ox+roi.shape[1]] = roi
+
+    # optional: thicken faint strokes a touch
+    canvas = cv2.dilate(canvas, np.ones((2,2), np.uint8), iterations=1)
+
+    # resize to 128x128 for consistent OCR
+    canvas = cv2.resize(canvas, (128, 128), interpolation=cv2.INTER_AREA)
+
+    # invert back to black stroke on white bg (Vision prefers it)
+    canvas = 255 - canvas
+
+    # re-encode as PNG base64
+    ok, buf = cv2.imencode(".png", canvas)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Preprocessing failed to encode image")
+    return base64.b64encode(buf.tobytes()).decode("ascii")
 
 # Tunables
 TOP_CONF_EASY = 0.70   # strong single-letter evidence
@@ -70,13 +122,17 @@ def detect_handwritten_letters_from_base64(
 
     # ---------- Call GCV ----------
     url = f"https://vision.googleapis.com/v1/images:annotate?key={api_key}"
+    # before calling GCV:
+    processed_b64 = _preprocess_base64_for_ocr(b64_image)
+
     payload = {
         "requests": [{
-            "image": {"content": b64_image},
-            "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
+            "image": {"content": processed_b64},
+            "features": [{"type": "TEXT_DETECTION"}],  # was DOCUMENT_TEXT_DETECTION
             "imageContext": {"languageHints": ["en"]},
         }]
     }
+
     try:
         resp = requests.post(url, json=payload, timeout=15)
         resp.raise_for_status()
@@ -135,43 +191,48 @@ def detect_handwritten_letters_from_base64(
         c = x["confidence"]
         count[l] += 1
         top_conf[l] = max(top_conf[l], c)
-
+    
     # ---------- EASY: one expected letter ----------
     if level == "easy":
         exp = expected_norm
-        matches = count[exp]
-        match_count = matches
-        ratio = (matches / total_alpha) if total_alpha else 0.0
-        top = top_conf.get(exp, 0.0)
+        allowed = EQUIV.get(exp, {exp})
 
-        # Decide: match the expected letter (primary or dominant)
-        # 1) Primary check: the highest-confidence symbol equals expected AND has strong confidence
-        # 2) Dominance check: expected letter is the majority of detections
-        # Primary symbol = max top_conf across letters
+        matches_list = [x for x in letters if x["letter"] in allowed]
+        match_count = len(matches_list)
+        ratio = (match_count / total_alpha) if total_alpha else 0.0
+
+        # top confidence among matches (incl. equivalents)
+        top = max((m["confidence"] for m in matches_list), default=0.0)
+
+        # Primary symbol based on confidence across all letters
         primary_letter = max(top_conf, key=lambda k: top_conf[k])
         primary_conf = top_conf[primary_letter]
 
-        is_correct = (
+        # Accept exact primary with normal threshold; accept equivalent with stricter threshold (+0.1)
+        primary_ok = (
             (primary_letter == exp and primary_conf >= TOP_CONF_EASY) or
-            (ratio >= MIN_RATIO and matches >= 1)
+            (primary_letter in allowed and primary_letter != exp and primary_conf >= (TOP_CONF_EASY + 0.10))
         )
 
-        # Build mismatches list (everything not expected, plus expected if missing)
+        is_correct = primary_ok or (ratio >= MIN_RATIO and match_count >= 1)
+
+        # mismatches: everything not expected (exact), plus expected if missing
         mismatches = []
         for k, v in count.items():
-            if k != exp:
+            if k not in allowed:
                 mismatches.append({"letter": k, "count": v, "top_confidence": round(top_conf[k], 3)})
-        if matches == 0:
+        if match_count == 0:
             mismatches.append({"letter": exp, "count": 1, "top_confidence": 0.0})
         mismatches.sort(key=lambda kv: (-kv["count"], -kv["top_confidence"]))
 
         reason = (
-            "Primary letter matches expected with strong confidence."
-            if (primary_letter == exp and primary_conf >= TOP_CONF_EASY) else
-            ("Expected letter dominates detections."
-             if (ratio >= MIN_RATIO and matches >= 1) else
-             ("No matching letter detected." if matches == 0
-              else (f"Low confidence on primary ({primary_conf:.2f})." if primary_letter == exp else "Expected letter not primary.")))
+            "Primary letter (or allowed equivalent) matches with strong confidence."
+            if primary_ok else
+            ("Expected letter (or equivalent) dominates detections."
+            if (ratio >= MIN_RATIO and match_count >= 1) else
+            ("No matching letter detected." if match_count == 0
+            else (f"Low confidence on primary ({primary_conf:.2f})." if primary_letter in allowed
+                    else "Expected letter not primary.")))
         )
 
         return {
@@ -188,6 +249,7 @@ def detect_handwritten_letters_from_base64(
             "letters": letters,
             "mismatches": mismatches,
         }
+
 
     # ---------- HARD: two expected letters (order required) ----------
     exp1, exp2 = expected_norm[0], expected_norm[1]
@@ -243,3 +305,24 @@ def detect_handwritten_letters_from_base64(
         "letters": letters,
         "mismatches": mismatches,
     }
+
+EQUIV = {
+    # rounded vs open
+    'o': {'o','O','0','c','C','q','Q'}, 'O': {'o','O','0','C','Q'},
+    'c': {'c','C','o','O'},
+    # V/U/Y family
+    'v': {'v','V','u','U','y','Y'}, 'V': {'v','V','U','Y'},
+    'u': {'u','U','v','V'}, 'U': {'u','U','V'},
+    'y': {'y','Y','v','V'},
+    # W/M (zigzag peaks)
+    'w': {'w','W','vv','VV'}, 'W': {'w','W','VV'},
+    'm': {'m','M','nn'}, 'M': {'m','M','NN'},
+    # verticals
+    'l': {'l','I','1','|'}, 'I': {'I','l','1','|'},
+    # loops / stems
+    'p': {'p','P','b'}, 'P': {'P','p','B'},
+    'q': {'q','Q','g'}, 'Q': {'Q','q'},
+    # crosses / angles
+    'x': {'x','X','k','K'}, 'X': {'x','X'},
+    'z': {'z','Z','2'},     'Z': {'z','Z'},
+}
