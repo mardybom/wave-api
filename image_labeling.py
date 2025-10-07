@@ -2,7 +2,7 @@ import base64
 import random
 import re
 import pronouncing
-from db import get_db_connection
+from db_config import get_db_connection
 
 # ---- ITR3: ARPAbet helpers ----
 def _arpabet_from_cmudict(word: str) -> str | None:

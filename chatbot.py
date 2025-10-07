@@ -1,115 +1,111 @@
-# --- target-skeleton-style setup ---
-import os
+"""
+Parent Chatbot Module
+Provides parent-friendly answers about dyslexia using Gemini with Google Search grounding.
+"""
+
 from google import genai
 from google.genai import types
+from gcv_config import get_gcv_api_key
 
 
-def get_parent_answer(question: str, kb_hit: str | None = None):
+def get_parent_answer(question: str, kb_hit: str | None = None) -> dict:
+    """
+    Generate a grounded, parent-friendly response about dyslexia.
 
-    api_key = os.getenv("GCV_API_KEY")
-    if not api_key:
-        raise ValueError("Missing GCV_API_KEY environment variable")
-    
+    Args:
+        question (str): Parent's question text.
+        kb_hit (Optional[str]): Optional knowledge base context.
+
+    Returns:
+        dict: Structured chatbot response with answer, sources, and suggestions.
+    """
+    api_key = get_gcv_api_key()
     client = genai.Client(api_key=api_key)
-    
-    # 2) Grounding tool (Google Search)
+
     grounding_tool = types.Tool(google_search=types.GoogleSearch())
-    
-    # 3) Config
     config = types.GenerateContentConfig(tools=[grounding_tool], temperature=0.7)
 
-    """
-    Builds a grounded, parent-friendly answer.
-    Assumes globals exist (per your target skeleton):
-      - client = genai.Client(...)
-      - grounding_tool = types.Tool(google_search=types.GoogleSearch())
-      - config = types.GenerateContentConfig(tools=[grounding_tool], ...)
-    """
-    # ---- 1) Compose prompt (system guidance + user/context in one string) ----
-    sys_prompt = f'''You are 'Parent Help', a warm, factual assistant for parents of school-aged 
-    agent with dyslexia. Please answer the question following the criteria below.
-    - If the question is related to kids with dyslexia:
-        - Please answer the question following the criteria below.
-            - Only answer dyslexia-related questions.
-            - NEVER diagnose.
-            - Be empathetic, concise and encouraging.
-            - Always cite sources when available.
-    - If question asked are related to treatment suggestions on dyslexia:
-        - return this particular reponse and no other response:
-            - Sorry I'm not suppose to provide medical suggestion. Please seek advice from a registered psychologist
-    - If question asked are not related to dyslexia at all:
-        - return this particular reponse and no other response:
-            - Sorry I can't answer this question.
-    - follow this exact format when returning the response, the <> is just a placeholder, you can replace it with your answer in the returned response
-        Answer: <Main answer to question>
-        1. <point 1>
-        <summary on point1>
-        <relevant citation to point1>
-        2. <point 2>
-        <summary on point2>
-        <relevant citation to point2>
-        '''
+    system_prompt = (
+        "You are 'Parent Help', a warm, factual assistant for parents of school-aged "
+        "children with dyslexia.\n"
+        "- If the question is related to dyslexia:\n"
+        "  • Answer only dyslexia-related questions.\n"
+        "  • Never diagnose.\n"
+        "  • Be empathetic, concise, and encouraging.\n"
+        "  • Always cite sources when available.\n"
+        "- If the question is about treatment suggestions:\n"
+        "  → Respond only with:\n"
+        "    'Sorry, I'm not supposed to provide medical suggestions. Please seek advice from a registered psychologist.'\n"
+        "- If the question is unrelated to dyslexia:\n"
+        "  → Respond only with:\n"
+        "    'Sorry, I can't answer this question.'\n"
+        "- Follow this response format:\n"
+        "    Answer: <Main answer>\n"
+        "    1. <Point 1>\n"
+        "       <Summary>\n"
+        "       <Citation>\n"
+        "    2. <Point 2>\n"
+        "       <Summary>\n"
+        "       <Citation>\n"
+    )
+
     prompt_text = (
-        f"{sys_prompt}\n\n"
+        f"{system_prompt}\n\n"
         f"Question: {question}\n"
         f"Context from our knowledge base:\n{kb_hit or 'N/A'}"
     )
 
-    # ---- 2) Call Gemini with Google Search grounding (target skeleton style) ----
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=prompt_text,    # single string is fine with google-genai
-        config=config            # must include tools=[grounding_tool]
+        contents=prompt_text,
+        config=config,
     )
 
-    # ---- 3) Extract main text ----
     answer = response.text.strip() if hasattr(response, "text") else str(response)
-
-    # ---- 4) Extract grounded citations from grounding_chunks (defensive) ----
-    def _extract_sources_from_candidate(cand) -> list[str]:
-        links: set[tuple[str, str]] = set()
-        gm = getattr(cand, "grounding_metadata", None)
-        if not gm:
-            return []
-        chunks = getattr(gm, "grounding_chunks", []) or []
-        for ch in chunks:
-            # Case A: web source
-            web = getattr(ch, "web", None)
-            if web:
-                uri = getattr(web, "uri", "") or getattr(web, "url", "")
-                title = getattr(web, "title", "") or "Source"
-                if uri:
-                    links.add((title, uri))
-            # Case B: retrieved_context (e.g., from other connectors)
-            rc = getattr(ch, "retrieved_context", None)
-            if rc:
-                uri = getattr(rc, "uri", "") or getattr(rc, "source_uri", "")
-                title = getattr(rc, "title", "") or "Source"
-                if uri:
-                    links.add((title, uri))
-        return [f"[{t}]({u})" for (t, u) in links]
-
     candidate = response.candidates[0] if getattr(response, "candidates", None) else None
-    sources = _extract_sources_from_candidate(candidate) if candidate else []
 
-    # ---- 5) Extract search suggestions if exposed by this SDK build ----
-    suggestions: list[str] = []
-    if candidate:
-        gm = getattr(candidate, "grounding_metadata", None)
-        if gm:
-            se = getattr(gm, "search_entry_point", None)
-            if se:
-                # Probe a few likely attribute names across versions
-                for attr in ("suggested_queries", "suggestedQuestions", "suggestions"):
-                    maybe = getattr(se, attr, None)
-                    if isinstance(maybe, (list, tuple)):
-                        suggestions = [str(x) for x in maybe]
-                        break
+    sources = _extract_sources(candidate) if candidate else []
+    suggestions = _extract_suggestions(candidate) if candidate else []
 
-    # ---- 6) Return structured result ----
     return {
         "answer": answer,
-        "sources": sources,            # Markdown links: ["[Title](https://...)"]
-        "suggestions": suggestions,    # Optional "Related searches"
-        "disclaimer": "This is general information, not medical advice."
+        "sources": sources,
+        "suggestions": suggestions,
+        "disclaimer": "This is general information, not medical advice.",
     }
+
+
+def _extract_sources(candidate) -> list[str]:
+    """Extract grounded web or retrieved sources."""
+    links = set()
+    gm = getattr(candidate, "grounding_metadata", None)
+    if not gm:
+        return []
+
+    for chunk in getattr(gm, "grounding_chunks", []) or []:
+        for attr in ("web", "retrieved_context"):
+            src = getattr(chunk, attr, None)
+            if src:
+                uri = getattr(src, "uri", "") or getattr(src, "url", "") or getattr(src, "source_uri", "")
+                title = getattr(src, "title", "") or "Source"
+                if uri:
+                    links.add((title, uri))
+
+    return [f"[{t}]({u})" for t, u in links]
+
+
+def _extract_suggestions(candidate) -> list[str]:
+    """Extract related search suggestions if available."""
+    gm = getattr(candidate, "grounding_metadata", None)
+    if not gm:
+        return []
+
+    se = getattr(gm, "search_entry_point", None)
+    if not se:
+        return []
+
+    for attr in ("suggested_queries", "suggestedQuestions", "suggestions"):
+        maybe = getattr(se, attr, None)
+        if isinstance(maybe, (list, tuple)):
+            return [str(x) for x in maybe]
+    return []
