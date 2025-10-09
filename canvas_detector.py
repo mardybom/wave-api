@@ -40,25 +40,36 @@ def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expecte
             raise HTTPException(status_code=400, detail="Invalid base64 image")
 
         url = f"https://vision.googleapis.com/v1/images:annotate?key={api_key}"
-        payload = {
-            "requests": [{
-                "image": {"content": b64_image},
-                "features": [{"type": "TEXT_DETECTION"}],
-                "imageContext": {"languageHints": ["en"]}
-            }]
-        }
+
+        def call_vision(feature_type: str):
+            payload = {
+                "requests": [{
+                    "image": {"content": b64_image},
+                    "features": [{"type": feature_type}],
+                    "imageContext": {"languageHints": ["en"]},
+                }]
+            }
+            resp = requests.post(url, json=payload, timeout=15)
+            resp.raise_for_status()
+            data = resp.json().get("responses", [{}])[0]
+            if "error" in data:
+                raise HTTPException(status_code=502, detail=data["error"].get("message", "Vision API error"))
+            return data
 
         try:
-            resp = requests.post(url, json=payload, timeout=15)
+            # First pass: TEXT_DETECTION (faster, better for single letters)
+            res = call_vision("TEXT_DETECTION")
+
+            # If no text found, fallback to DOCUMENT_TEXT_DETECTION
+            if not res.get("fullTextAnnotation") and not res.get("textAnnotations"):
+                res = call_vision("DOCUMENT_TEXT_DETECTION")
+
         except requests.exceptions.RequestException as re:
             raise HTTPException(status_code=502, detail=f"Vision API request failed: {re}")
-
-        if resp.status_code != 200:
-            raise HTTPException(status_code=502, detail=f"Vision API HTTP {resp.status_code}: {resp.text}")
-
-        res = resp.json().get("responses", [{}])[0]
-        if "error" in res:
-            raise HTTPException(status_code=502, detail=res["error"].get("message", "Vision API error"))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Unexpected Vision API error: {e}")
 
         doc = res.get("fullTextAnnotation")
         letters: List[Dict] = []
