@@ -4,3 +4,6 @@ psycopg2
 pronouncing
 setuptools<81
 google-genai
+opencv-python
+pillow
+numpy
