@@ -2,6 +2,9 @@
 __pycache__/
 *.py[codz]
 *$py.class
+insert.py
+kids_reading_dataset.csv
+display_table.py
 
 # C extensions
 *.so

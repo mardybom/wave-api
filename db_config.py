@@ -10,17 +10,26 @@ import psycopg2
 import psycopg2.extras
 
 
-def _conninfo() -> dict:
-    """Return connection information from environment variables."""
-    return {
-        "host": os.environ["DB_HOST"],
-        "dbname": os.environ["DB_NAME"],
-        "user": os.environ["DB_USER"],
-        "password": os.environ["DB_PASSWORD"],
-        "port": os.environ["DB_PORT"],
-        "sslmode": os.environ["DB_SSLMODE"],
-    }
+# def _conninfo() -> dict:
+#     """Return connection information from environment variables."""
+#     return {
+#         "host": os.environ["DB_HOST"],
+#         "dbname": os.environ["DB_NAME"],
+#         "user": os.environ["DB_USER"],
+#         "password": os.environ["DB_PASSWORD"],
+#         "port": os.environ["DB_PORT"],
+#         "sslmode": os.environ["DB_SSLMODE"],
+#     }
 
+def _conninfo():
+    return {
+        "host": "ep-fragrant-butterfly-a7vckg9p-pooler.ap-southeast-2.aws.neon.tech",
+        "dbname": "wavedb",
+        "user": "wave_app",
+        "password": "t@36Mona$hIE",
+        "port": "5432",
+        "sslmode": "require",
+    }
 
 def get_db_connection():
     """Create and return a psycopg2 connection using RealDictCursor."""

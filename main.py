@@ -19,6 +19,7 @@ from sentence_rearranging import fetch_next_sentence_row
 from image_labeling import fetch_random_image_row
 from dyslexia_myths import fetch_next_myth_row
 from chatbot import get_parent_answer
+from reading_speed import fetch_next_reading_row
 
 app = FastAPI(title="Alphabet Mastery API", version="3.0.0")
 
@@ -110,3 +111,22 @@ def parent_chat(req: ParentChatRequest):
         return {"status": "success", "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chatbot error: {str(e)}")
+
+# ---------------- Reading Speed ---------------- #
+@app.post("/reading_speed")
+def get_reading_passage(request: dict):
+    """
+    Example POST body:
+    {
+        "level": "Easy"
+    }
+    """
+    level = request.get("level", "").strip().capitalize()
+    if level not in {"Easy", "Medium", "Hard"}:
+        raise HTTPException(status_code=400, detail="Level must be Easy, Medium, or Hard")
+
+    row = fetch_next_reading_row(level)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"No passage found for level '{level}'")
+
+    return {"status": "success", "data": row}
