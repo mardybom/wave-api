@@ -9,7 +9,8 @@ Provides endpoints for:
   - Parent-friendly chatbot
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -20,13 +21,23 @@ from image_labeling import fetch_random_image_row
 from dyslexia_myths import fetch_next_myth_row
 from chatbot import get_parent_answer
 from reading_speed import fetch_next_reading_row
+from wave_security import get_current_username
 
 app = FastAPI(title="Alphabet Mastery API", version="3.0.0")
 
 
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"error": "Access denied. Invalid or missing credentials."},
+        )
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
 # ---------------- Alphabet Mastery ---------------- #
 @app.post("/alphabet_mastery")
-def read_canvas_input(request: CanvasInput):
+def read_canvas_input(request: CanvasInput, username: str = Depends(get_current_username)):
     """Run handwriting detection and verify the expected letter."""
     api_key = get_gcv_api_key()
     try:
@@ -49,7 +60,7 @@ class SentenceLevelRequest(BaseModel):
 
 
 @app.post("/sentence/next")
-def sentence_next(req: SentenceLevelRequest):
+def sentence_next(req: SentenceLevelRequest, username: str = Depends(get_current_username)):
     """Fetch the next unique sentence row for the given difficulty level."""
     level = (req.level or "").strip()
     if not level:
@@ -68,7 +79,7 @@ def sentence_next(req: SentenceLevelRequest):
 
 # ---------------- Image Labeling ---------------- #
 @app.post("/image_labeling/next")
-def get_image_labeling():
+def get_image_labeling(username: str = Depends(get_current_username)):
     """Return a random image row with label options for the game."""
     try:
         row = fetch_random_image_row()
@@ -81,7 +92,7 @@ def get_image_labeling():
 
 # ---------------- Dyslexia Myths ---------------- #
 @app.post("/myth/next")
-def myth_next():
+def myth_next(username: str = Depends(get_current_username)):
     """Fetch the next batch of dyslexia myths and truths."""
     try:
         rows = fetch_next_myth_row(batch_size=10)
@@ -103,7 +114,7 @@ class ParentChatRequest(BaseModel):
 
 
 @app.post("/parent_chat")
-def parent_chat(req: ParentChatRequest):
+def parent_chat(req: ParentChatRequest, username: str = Depends(get_current_username)):
     """Return a parent-friendly chatbot response with grounding and citations."""
     api_key = get_gcv_api_key()
     try:
@@ -114,7 +125,7 @@ def parent_chat(req: ParentChatRequest):
 
 # ---------------- Reading Speed ---------------- #
 @app.post("/reading_speed")
-def get_reading_passage(request: dict):
+def get_reading_passage(request: dict, username: str = Depends(get_current_username)):
     """
     Example POST body:
     {
@@ -130,3 +141,8 @@ def get_reading_passage(request: dict):
         raise HTTPException(status_code=404, detail=f"No passage found for level '{level}'")
 
     return {"status": "success", "data": row}
+
+# ---------------- API Health Check ---------------- #
+@app.get("/api/health")
+def api_health():
+    return {"status": "OK", "version": "3.0.0"}
