@@ -80,14 +80,15 @@ def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expecte
                         for word in para.get("words", []):
                             for symbol in word.get("symbols", []):
                                 ch = symbol.get("text", "")
-                                conf = float(symbol.get("confidence", 0.0) or 0.0)
+                                # conf = float(symbol.get("confidence", 0.0) or 0.0)
                                 if (ch.isalpha() or ch == '@') and ord(ch) < 128:
                                     if ch.lower() in 'cxvusmwyzp':
                                         if is_capital == "capital":
                                             ch = ch.upper()
                                         else:
                                             ch = ch.lower()
-                                    letters.append({"letter": ch, "confidence": round(conf, 3)})
+                                    letters.append({"letter": ch})
+                                    # letters.append({"letter": ch, "confidence": round(conf, 3)})
 
         # Case-insensitive verification
         # expected_up = expected_letter.upper()
@@ -97,7 +98,7 @@ def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expecte
         matches = [x for x in letters if x["letter"] in expected_up]
         match_count = len(matches)
         # top_match_conf = max([m["confidence"] for m in matches], default=0.0)
-        top_match_conf = statistics.mean([m["confidence"] for m in matches]) if len(matches) > 0 else 0
+        # top_match_conf = statistics.mean([m["confidence"] for m in matches]) if len(matches) > 0 else 0
         # ratio = (match_count / total_alpha) if total_alpha else 0.0
         # is_correct = (match_count == len(expected_up)) and (mismatch_counts == 0) and (top_match_conf >= 0.70 or ratio >= 0.60)
 
@@ -108,32 +109,37 @@ def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expecte
             up = x["letter"]
             if up not in expected_up:
                 mismatch_counts[up] += 1
-                mismatch_top_conf[up] = max(mismatch_top_conf[up], x["confidence"])
+                # mismatch_top_conf[up] = max(mismatch_top_conf[up], x["confidence"])
 
         for y in expected_letter:
             if y not in [x["letter"] for x in letters]:
                 mismatch_counts[y] += 1
-                mismatch_top_conf[y] = 0
+                # mismatch_top_conf[y] = 0
 
+        # mismatches = [
+        #     {"letter": k, "count": v, "top_confidence": round(mismatch_top_conf[k], 3)}
+        #     for k, v in sorted(mismatch_counts.items(), key=lambda kv: (-kv[1], -mismatch_top_conf[kv[0]]))
+        # ]
         mismatches = [
-            {"letter": k, "count": v, "top_confidence": round(mismatch_top_conf[k], 3)}
-            for k, v in sorted(mismatch_counts.items(), key=lambda kv: (-kv[1], -mismatch_top_conf[kv[0]]))
+            {"letter": k, "count": v}
+            for k, v in sorted(mismatch_counts.items(), key=lambda kv: (-kv[1]))
         ]
         ratio = ((len(expected_letter) - len(mismatches)) / len(expected_letter)) if expected_letter else 0.0
-        is_correct = (len(mismatches)==0) and (top_match_conf >= 0.30 and ratio >= 0.60)
+        is_correct = (len(mismatches)==0) 
+        # and (top_match_conf >= 0.30 and ratio >= 0.60)
         
         reason = ""
         if not is_correct:
             if (len(mismatches) > 0): # when user writes extra letters, or they are missing some letters
                 reason = f"You have {len(mismatches)} mismatched alphabets"
-            elif (top_match_conf < 0.30):
-                reason = f"Low confidence ({top_match_conf:.2f})"
+            # elif (top_match_conf < 0.30):
+            #     reason = f"Low confidence ({top_match_conf:.2f})"
             elif ratio < 0.60:
                 reason = "You're partially correct."
             else:
                 reason = "Please try again."
         else:
-            reason = "Match found with sufficient confident."
+            reason = "Match found"
             
         return {
             "expected_letter": expected_up,
@@ -141,7 +147,7 @@ def detect_handwritten_letters_from_base64(b64_image: str, api_key: str, expecte
             "reason": reason,
             "detected_count": total_alpha,
             "match_count": match_count,
-            "top_match_confidence": round(top_match_conf, 3),
+            # "top_match_confidence": round(top_match_conf, 3),
             "match_ratio": round(ratio, 3),
             "letters": letters,
             "mismatches": mismatches
