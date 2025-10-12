@@ -9,6 +9,7 @@ Provides endpoints for:
   - Parent-friendly chatbot
 """
 
+import os
 from fastapi import FastAPI, HTTPException, Depends, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -23,7 +24,13 @@ from chatbot import get_parent_answer
 from reading_speed import fetch_next_reading_row
 from wave_security import get_current_username
 
-app = FastAPI(title="Alphabet Mastery API", version="3.0.0")
+app = FastAPI(
+    title="Alphabet Mastery API",
+    version="3.0.0",
+    openapi_url=os.environ.get("OPENAPI_URL"),
+    docs_url=os.environ.get("DOCS_URL"),
+    redoc_url=os.environ.get("REDOC_URL"),
+)
 
 
 @app.exception_handler(HTTPException)
