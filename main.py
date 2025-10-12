@@ -133,8 +133,8 @@ def get_reading_passage(request: dict, username: str = Depends(get_current_usern
     }
     """
     level = request.get("level", "").strip().capitalize()
-    if level not in {"Easy", "Medium", "Hard"}:
-        raise HTTPException(status_code=400, detail="Level must be Easy, Medium, or Hard")
+    if level not in {"Easy", "Medium", "Hard", "Extreme"}:
+        raise HTTPException(status_code=400, detail="Level must be Easy, Medium, Hard, or Extreme")
 
     row = fetch_next_reading_row(level)
     if not row:

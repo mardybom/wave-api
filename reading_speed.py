@@ -12,7 +12,7 @@ from db_config import get_db_connection
 
 def fetch_next_reading_row(level: str):
     """
-    Return the next unique row for the given level (Easy, Medium, Hard).
+    Return the next unique row for the given level (Easy, Medium, Hard, Extreme).
     Wraps back to the first when the end is reached.
 
     Requires existing tables:
