@@ -1,0 +1,30 @@
+[run]
+# Directories or files to measure
+source =
+    .
+
+# Files or folders to completely ignore from coverage tracking
+omit =
+    */insert.py
+    */display_table.py
+    */custom_worker.py  
+    */venv/*
+    */wave-env/*
+    */__init__.py
+    */tests/*
+    */itr3-tests/*conftest.py
+
+[report]
+# Exclude lines matching these patterns from coverage calculations
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+
+# Sort results for readability
+sort = Cover
+
+# Show missing lines
+show_missing = True
+
+# Don’t include files with 0 statements
+skip_empty = True
